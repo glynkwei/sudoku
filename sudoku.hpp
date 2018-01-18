@@ -120,18 +120,19 @@ namespace sudoku
 		}
 	}
 	
-	template<typename ForwardIterator>
-	bool evaluate(ForwardIterator forward_iterator);
+	template<typename ForwardIt>
+	bool evaluate(ForwardIt forward_iterator);
 
-	template<typename ForwardIterator>
+	template<typename ForwardIt>
 	class SudokuBoard
 	{
-		friend bool evaluate<ForwardIterator>(ForwardIterator forward_iterator);		
+		friend bool evaluate<ForwardIt>(ForwardIt first);		
 		std::array<U32,81> domains;
 		std::array<std::vector<int>,9> span;
-		ForwardIterator forward_iterator;
-		explicit SudokuBoard(ForwardIterator it) : forward_iterator(it)
+		ForwardIt first;		
+		explicit SudokuBoard(ForwardIt it) : first(it)
 		{
+			static_assert(std::is_integral<typename std::iterator_traits<ForwardIt>::value_type>::value, "Integral value type required.");
 			for (auto i = 0; i < 81; i++)
 			{
 				if (*it == 0)
@@ -402,8 +403,8 @@ namespace sudoku
 					unsigned long pos;
 					_BitScanForward(&pos, domains[index]);
 					auto val = pos + 1;
-					*forward_iterator = val;
-					++forward_iterator;
+					*first = val;
+					++first;
 				}
 			}
 		}		
@@ -444,10 +445,10 @@ namespace sudoku
 	}
 
 
-	template<typename ForwardIterator>
-	inline bool evaluate(ForwardIterator forward_iterator)
+	template<typename ForwardIt>
+	inline bool evaluate(ForwardIt first)
 	{
-		SudokuBoard<ForwardIterator> su(forward_iterator);		
+		SudokuBoard<ForwardIt> su(first);		
 		return su.evaluate();
 	}
 
