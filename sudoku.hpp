@@ -1,11 +1,9 @@
 #pragma once
 #include <intrin.h>
 #include <queue>
+#include <vector>
 #include <array>
-#include <optional>
-#include <iostream>
 #include <string>
-#include <numeric>
 #pragma intrinsic(_BitScanForward)   
 
 namespace sudoku
@@ -87,23 +85,28 @@ namespace sudoku
 
 	struct Arc
 	{
-		int priority;
 		int from;
 		int to;
 	};
 
-	inline bool operator<(const Arc & lhs, const Arc & rhs)
-	{
-		return lhs.priority < rhs.priority;
-	}
-
-	inline void revise(int priority, int from, std::priority_queue<Arc> & arcs)
+	inline void revise(int from, std::vector<Arc> & arcs)
 	{
 		for (auto i = 0; i < 20; i++)
 		{
 			auto neighbor = NEIGHBOR_TABLE[20 * from + i];
-			arcs.push(Arc{ priority, neighbor,from });
+			arcs.push_back(Arc{neighbor,from });
 		}
+	}
+
+	inline std::vector<Arc> make_arcs()
+	{
+		std::vector<Arc> arcs;
+		arcs.reserve(1800);
+		for (auto i = 0; i < 1620; i++)
+		{
+			arcs.push_back(Arc{ i / 20, NEIGHBOR_TABLE[i] });
+		}
+		return arcs;
 	}
 
 	template<typename ForwardIt>
@@ -132,12 +135,12 @@ namespace sudoku
 			}
 		}
 
-		Status make_consistent(std::priority_queue<Arc> & arcs)
+		Status make_consistent(std::vector<Arc> & arcs)
 		{
 			while (!arcs.empty())
 			{
-				const auto arc = arcs.top();
-				arcs.pop();
+				const auto arc = arcs.back();
+				arcs.pop_back();
 				unsigned long to_zval;
 				if (__popcnt(domains[arc.to]) == 1)
 				{
@@ -148,36 +151,15 @@ namespace sudoku
 						if (!domains[arc.from])
 						{
 							return Status::Inconsistent;
-						}
-						int hamming_weight = __popcnt(domains[arc.from]);
-						if (hamming_weight == 1)
-						{
-							unsigned long from_zval;
-							_BitScanForward(&from_zval, domains[arc.from]);
-						}
-						revise(hamming_weight, arc.from, arcs);
+						}						
+						revise(arc.from, arcs);
 					}
 				}
 			}
 			return Status::Inconclusive;
-		}
+		}		
 
-		std::priority_queue<Arc> make_arcs()
-		{
-			std::priority_queue<Arc> arcs;
-			int priorities[81];
-			for (auto index = 0; index < 81; index++)
-			{
-				priorities[index] = __popcnt(domains[index]);
-			}
-			for (auto i = 0; i < 1620; i++)
-			{
-				arcs.push(Arc{ priorities[NEIGHBOR_TABLE[i]],  i / 20, NEIGHBOR_TABLE[i] });
-			}
-			return arcs;
-		}
-
-		bool solved()
+		bool solved() const
 		{
 			for (auto domain : domains)
 			{
@@ -189,7 +171,7 @@ namespace sudoku
 			return true;
 		}
 
-		int min_weight()
+		int min_weight() const
 		{
 			auto min_index = -1;
 			auto min = 10;
@@ -210,14 +192,14 @@ namespace sudoku
 			return min_index;
 		}			
 
-		SudokuBoard branch(int index, int val) const
+		SudokuBoard branch(const int index,const int val) const
 		{
 			auto clone(*this);
 			clone.domains[index] = MASK[val - 1];
 			return clone;
 		}
 
-		bool evaluate(std::priority_queue<Arc> arcs)
+		bool evaluate(std::vector<Arc> arcs)
 		{
 			// Consume current arcs 
 			auto res = make_consistent(arcs);
@@ -240,8 +222,9 @@ namespace sudoku
 				value += (pos + 1);
 				current >>= (pos + 1);
 				auto br = branch(unassigned_index, value);
-				revise(1, unassigned_index, arcs);
-				if (br.evaluate(arcs))
+				auto br_arcs = arcs;
+				revise(unassigned_index, br_arcs);
+				if (br.evaluate(br_arcs))
 				{
 					return true;
 				}
@@ -270,7 +253,7 @@ namespace sudoku
 		}
 	};
 
-	inline std::string str(int dst[81])
+	inline std::string str(const int dst[81])
 	{
 		std::string str;
 		str.reserve(81);
@@ -280,7 +263,7 @@ namespace sudoku
 		}
 		return str;
 	}
-	inline std::string pretty_str(int dst[81])
+	inline std::string pretty_str(const int dst[81])
 	{
 		std::string str;
 		str.reserve(90);
@@ -312,7 +295,7 @@ namespace sudoku
 		return su.evaluate();
 	}
 
-	inline bool evaluate(std::istream & in, std::ostream & out, bool pretty = false)
+	inline bool evaluate(std::istream & in, std::ostream & out, const bool pretty = false)
 	{
 		int board[81];
 		auto i = 0;
