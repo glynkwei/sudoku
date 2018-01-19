@@ -1,5 +1,5 @@
 # sudoku
-A blazing fast header-only solver for the game, Sudoku. Currently only supported for MSVC on x86/x64. When run with -O2 optimization, a board takes roughly 0.4 miliseconds to solve.
+A blazing fast header-only solver for the game, Sudoku. Currently only supported for MSVC on x86/x64. When run with -O2 optimization, a board takes roughly 0.1 miliseconds to solve, but can take as long as 30 miliseconds.
 
 ## Documentation
 ``` C++
