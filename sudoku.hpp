@@ -94,7 +94,7 @@ namespace sudoku
 
 	inline bool operator<(const Arc & lhs, const Arc & rhs)
 	{
-		return lhs.priority > rhs.priority;
+		return lhs.priority < rhs.priority;
 	}
 
 	inline void revise(int priority, int from, std::priority_queue<Arc> & arcs)
@@ -107,7 +107,7 @@ namespace sudoku
 	}
 
 	template<typename ForwardIt>
-	bool evaluate(ForwardIt forward_iterator);
+	bool evaluate(ForwardIt first);
 
 	template<typename ForwardIt>
 	class SudokuBoard
@@ -208,9 +208,7 @@ namespace sudoku
 				}
 			}
 			return min_index;
-		}
-
-		
+		}			
 
 		SudokuBoard branch(int index, int val) const
 		{
@@ -224,9 +222,9 @@ namespace sudoku
 			// Consume current arcs 
 			auto res = make_consistent(arcs);
 			switch (res) {
-			case Status::Solved:		return true;
-			case Status::Inconsistent:	return false;
-			case Status::Inconclusive:	break;
+				case Status::Solved:		return true;
+				case Status::Inconsistent:	return false;
+				case Status::Inconclusive:	break;
 			}
 			if (solved())
 			{
@@ -250,10 +248,12 @@ namespace sudoku
 			}
 			return false;
 		}
+
 		bool evaluate()
 		{
 			return evaluate(make_arcs());
 		}
+
 		void update_iterator()
 		{
 			for (auto index = 0; index < 81; index++)
@@ -269,6 +269,7 @@ namespace sudoku
 			}
 		}
 	};
+
 	inline std::string str(int dst[81])
 	{
 		std::string str;
@@ -303,7 +304,6 @@ namespace sudoku
 		}
 		return str;
 	}
-
 
 	template<typename ForwardIt>
 	inline bool evaluate(ForwardIt first)
