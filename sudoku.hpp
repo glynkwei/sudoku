@@ -9,7 +9,7 @@
 #pragma intrinsic(_BitScanForward)   
 
 namespace sudoku
-{	
+{
 	typedef uint32_t U32;
 	constexpr std::array<int, 9> block_region(const int index)
 	{
@@ -18,14 +18,14 @@ namespace sudoku
 			start + 9, start + 10, start + 11,
 			start + 18, start + 19, start + 20 };
 
-	}	
+	}
 	constexpr std::array<int, 9> row_region(const int col)
 	{
 		return std::array<int, 9>{ col, col + 9, col + 18, col + 27, col + 36, col + 45, col + 54, col + 63, col + 72};
 	}
 	constexpr std::array<int, 9> col_region(const int row)
 	{
-		return std::array<int, 9>{9*row, 9*row + 1, 9*row + 2, 9*row + 3, 9*row + 4, 9*row + 5, 9*row + 6, 9*row + 7, 9*row + 8};
+		return std::array<int, 9>{9 * row, 9 * row + 1, 9 * row + 2, 9 * row + 3, 9 * row + 4, 9 * row + 5, 9 * row + 6, 9 * row + 7, 9 * row + 8};
 	}
 	const int NEIGHBOR_TABLE[1620] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 18, 27, 36, 45, 54, 63, 72, 10, 11, 19, 20, 0, 2, 3, 4, 5, 6, 7, 8, 10, 19, 28, 37, 46, 55, 64, 73, 9, 11, 18, 20, 0, 1, 3, 4, 5, 6, 7, 8, 11, 20,
 		29, 38, 47, 56, 65, 74, 9, 10, 18, 19, 0, 1, 2, 4, 5, 6, 7, 8, 12, 21, 30, 39, 48, 57, 66, 75, 13, 14, 22, 23, 0, 1, 2, 3, 5, 6, 7, 8, 13, 22, 31, 40, 49, 58, 67, 76, 12, 14, 21, 23, 0, 1, 2, 3, 4, 6, 7, 8,
@@ -71,18 +71,18 @@ namespace sudoku
 	const U32 MASK_ALL = 0x000001FF;
 
 	/* a REGION can be either a BLOCK, ROW, or COL*/
-	const std::array<int, 9> BLOCK[9] = {	block_region(0), block_region(1), block_region(2),
+	const std::array<int, 9> BLOCK[9] = { block_region(0), block_region(1), block_region(2),
 											block_region(3), block_region(4), block_region(5),
 											block_region(6), block_region(7), block_region(8) };
 	const std::array<int, 9> ROW[9] = { row_region(0), row_region(1), row_region(2),
 										row_region(3),row_region(4), row_region(5),
-										row_region(6), row_region(7), row_region(8)};
-	const std::array<int, 9> COL[9] = {	col_region(0), col_region(1), col_region(2),
+										row_region(6), row_region(7), row_region(8) };
+	const std::array<int, 9> COL[9] = { col_region(0), col_region(1), col_region(2),
 										col_region(3),col_region(4), col_region(5),
 										col_region(6), col_region(7), col_region(8) };
 	enum class Status
 	{
-		Inconsistent, Inconclusive, Solved		
+		Inconsistent, Inconclusive, Solved
 	};
 
 	struct Arc
@@ -97,39 +97,24 @@ namespace sudoku
 		return lhs.priority > rhs.priority;
 	}
 
-
-	inline void insert_span(const int index, std::vector<int> & dst)
-	{		
-		
-		if (!std::binary_search(dst.begin(), dst.end(), index))
+	inline void revise(int priority, int from, std::priority_queue<Arc> & arcs)
+	{
+		for (auto i = 0; i < 20; i++)
 		{
-			int neighbors[20];
-			auto length = 0;
-			std::copy_if(NEIGHBOR_TABLE + index * 20, NEIGHBOR_TABLE + (index + 1) * 20, neighbors, [&length, &dst](const int i)
-			{
-				if (!std::binary_search(dst.begin(), dst.end(), i))
-				{
-					length++;					
-					return true;
-				}
-				return false;
-			});
-			dst.push_back(index);
-			dst.insert(dst.end(), neighbors, neighbors + length);	
-			sort(dst.begin(), dst.end());
+			auto neighbor = NEIGHBOR_TABLE[20 * from + i];
+			arcs.push(Arc{ priority, neighbor,from });
 		}
 	}
-	
+
 	template<typename ForwardIt>
 	bool evaluate(ForwardIt forward_iterator);
 
 	template<typename ForwardIt>
 	class SudokuBoard
 	{
-		friend bool evaluate<ForwardIt>(ForwardIt first);		
-		std::array<U32,81> domains;
-		std::array<std::vector<int>,9> span;
-		ForwardIt first;		
+		friend bool evaluate<ForwardIt>(ForwardIt first);
+		std::array<U32, 81> domains;
+		ForwardIt first;
 		explicit SudokuBoard(ForwardIt it) : first(it)
 		{
 			static_assert(std::is_integral<typename std::iterator_traits<ForwardIt>::value_type>::value, "Integral value type required.");
@@ -141,13 +126,9 @@ namespace sudoku
 				}
 				else
 				{
-					domains[i] = MASK[*it- 1];
+					domains[i] = MASK[*it - 1];
 				}
 				++it;
-			}
-			for (auto i = 0; i < 9; i++)
-			{
-				span[i] = make_span(i + 1);
 			}
 		}
 
@@ -157,7 +138,7 @@ namespace sudoku
 			{
 				const auto arc = arcs.top();
 				arcs.pop();
-				unsigned long to_zval;				
+				unsigned long to_zval;
 				if (__popcnt(domains[arc.to]) == 1)
 				{
 					_BitScanForward(&to_zval, domains[arc.to]);
@@ -170,145 +151,18 @@ namespace sudoku
 						}
 						int hamming_weight = __popcnt(domains[arc.from]);
 						if (hamming_weight == 1)
-						{							
+						{
 							unsigned long from_zval;
 							_BitScanForward(&from_zval, domains[arc.from]);
-							insert_span(arc.from, span[from_zval]);
 						}
-						for (auto i = 0; i < 20; i++)
-						{
-							auto neighbor = NEIGHBOR_TABLE[20 * arc.from + i];
-							if (neighbor != arc.to)
-							{
-								arcs.push(Arc{ hamming_weight, neighbor, arc.from });
-							}
-						}
+						revise(hamming_weight, arc.from, arcs);
 					}
-				}				
+				}
 			}
 			return Status::Inconclusive;
 		}
 
-		Status AC3()
-		{
-			std::priority_queue<Arc> arcs;
-			int priorities[81];
-			for (auto index = 0; index < 81; index++)
-			{
-				priorities[index] = __popcnt(domains[index]);
-			}
-			for (auto i = 0; i < 1620; i++)
-			{
-				arcs.push(Arc{priorities[NEIGHBOR_TABLE[i]],  i / 20, NEIGHBOR_TABLE[i] });
-			}
-			return make_consistent(arcs);
-		}
-
-		std::vector<int> make_span(const int value) const
-		{
-			std::vector<int> dst;
-			dst.reserve(81);
-			for (auto index = 0; index < 81; index++)
-			{
-				if (__popcnt(domains[index]) == 1 && (domains[index] & MASK[value - 1]))
-				{
-					insert_span(index, dst);
-				}
-			}
-			return dst;
-		}
-
-		bool coerce(std::priority_queue<Arc> & arcs, const std::array<int, 9> REGION[9])
-		{
-			auto return_flag = false;
-			for (auto id = 0; id < 9; id++)
-			{
-				auto block_domain = MASK_ALL;
-				for (const auto index : REGION[id])
-				{
-					if (__popcnt(domains[index]) == 1)
-					{
-						block_domain &= ~domains[index];
-					}
-				}
-				auto value = 0;
-				unsigned long pos;
-				auto current = block_domain;
-				while (_BitScanForward(&pos, current))
-				{
-					value += (pos + 1);
-					current >>= (pos + 1);
-					int illegal_region[90];
-					// Corresponds to same-valued indices and its neighbors
-					std::copy(span[value-1].begin(), span[value-1].end(), illegal_region);
-					
-					
-					// Corresponds to all neighbors in the same region
-					auto sublength = 0;						
-					std::copy_if(REGION[id].data(), REGION[id].data() + 9, illegal_region + span[value-1].size(), [this, & sublength](int i)
-					{
-						if (__popcnt(this->domains[i]) == 1)
-						{
-							sublength++;
-							return true;
-						}
-						return false;
-					});
-
-					auto length = sublength + span[value-1].size();
-					std::sort(illegal_region, illegal_region + length);			
-
-					std::optional<int> coerced_index;
-					for (const auto index : REGION[id])
-					{
-						if (!std::binary_search(illegal_region, illegal_region + length, index ))
-						{
-							if (coerced_index)
-							{
-								coerced_index = {};
-								break;
-							}
-							else
-							{
-								coerced_index = std::make_optional(index);
-							}
-						}
-					}
-					if (coerced_index)
-					{
-						return_flag = true;
-						auto to = coerced_index.value();						
-						domains[to] = MASK[value-1];						
-						insert_span(to, span[value-1]);
-						for (auto i = 0; i < 20; i++)
-						{
-							auto from = NEIGHBOR_TABLE[20 * to + i];
-							arcs.push(Arc{ 1, from, to });
-						}
-						
-					}
-					
-				}
-			}
-			return return_flag;
-		}
-
-		Status infer(std::priority_queue<Arc> & arcs)
-		{
-			while (!arcs.empty())
-			{
-				if (make_consistent(arcs) == Status::Inconsistent )
-				{
-					return Status::Inconsistent;
-				}				
-				coerce(arcs, BLOCK);
-				coerce(arcs, ROW);
-				coerce(arcs, COL);		
-			}
-			return Status::Inconclusive;
-		}
-
-		Status make_inferences()
+		std::priority_queue<Arc> make_arcs()
 		{
 			std::priority_queue<Arc> arcs;
 			int priorities[81];
@@ -320,9 +174,9 @@ namespace sudoku
 			{
 				arcs.push(Arc{ priorities[NEIGHBOR_TABLE[i]],  i / 20, NEIGHBOR_TABLE[i] });
 			}
-			return infer(arcs);
+			return arcs;
 		}
-	
+
 		bool solved()
 		{
 			for (auto domain : domains)
@@ -356,21 +210,23 @@ namespace sudoku
 			return min_index;
 		}
 
+		
+
 		SudokuBoard branch(int index, int val) const
 		{
 			auto clone(*this);
 			clone.domains[index] = MASK[val - 1];
-			insert_span(index, clone.span[val - 1]);
 			return clone;
 		}
 
-		bool evaluate()
-		{			
-			auto res = make_inferences();
+		bool evaluate(std::priority_queue<Arc> arcs)
+		{
+			// Consume current arcs 
+			auto res = make_consistent(arcs);
 			switch (res) {
 			case Status::Solved:		return true;
 			case Status::Inconsistent:	return false;
-				case Status::Inconclusive:	break;
+			case Status::Inconclusive:	break;
 			}
 			if (solved())
 			{
@@ -379,23 +235,27 @@ namespace sudoku
 			}
 			auto unassigned_index = min_weight();
 			auto value = 0;
-			unsigned long pos;			
+			unsigned long pos;
 			auto current = domains[unassigned_index];
 			while (_BitScanForward(&pos, current))
 			{
 				value += (pos + 1);
 				current >>= (pos + 1);
 				auto br = branch(unassigned_index, value);
-				 if (br.evaluate())
-				 {
-					 return true;
-				 }				
+				revise(1, unassigned_index, arcs);
+				if (br.evaluate(arcs))
+				{
+					return true;
+				}
 			}
 			return false;
 		}
-
+		bool evaluate()
+		{
+			return evaluate(make_arcs());
+		}
 		void update_iterator()
-		{	
+		{
 			for (auto index = 0; index < 81; index++)
 			{
 				if (__popcnt(domains[index]) == 1)
@@ -407,7 +267,7 @@ namespace sudoku
 					++first;
 				}
 			}
-		}		
+		}
 	};
 	inline std::string str(int dst[81])
 	{
@@ -448,7 +308,7 @@ namespace sudoku
 	template<typename ForwardIt>
 	inline bool evaluate(ForwardIt first)
 	{
-		SudokuBoard<ForwardIt> su(first);		
+		SudokuBoard<ForwardIt> su(first);
 		return su.evaluate();
 	}
 
