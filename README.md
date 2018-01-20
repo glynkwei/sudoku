@@ -12,7 +12,8 @@ int board[81] = {
 					4,6,0,5,0,7,1,0,0,
 					0,0,0,0,0,0,0,0,7,
 					1,2,5,3,0,0,0,0,9,
-					0,0,7,2,4,0,0,0,0 };
+					0,0,7,2,4,0,0,0,0 
+				};
 if (sudoku::evaluate(board))
 {
     // board's values successfully updated with solution
@@ -62,7 +63,7 @@ bool evaluate(ForwardIt first)
 - If the puzzle was solved successfully, then ForwardIterator contains the solved puzzle in index form
 
 ### **Exceptions**
-- Throws ```std::runtime_error``` if hardware does not support the __popcnt instruction.
+- Throws ```std::runtime_error``` if hardware does not support the ```__popcnt``` instruction.
 
 ### **Notes**
 - The forward iterator must be able to advance at least 81 times. 
