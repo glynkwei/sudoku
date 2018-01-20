@@ -1,30 +1,98 @@
 #pragma once
 #include <intrin.h>
-#include <queue>
 #include <vector>
 #include <array>
 #include <string>
 #pragma intrinsic(_BitScanForward)   
 
+//
+ // Sudoku Solver
+ //  Solve any 9x9 game of Sudoku using sudoku::evaluate
+
 namespace sudoku
 {
+	
+
+	// Parameters:
+	//		first - The beginning of the input range 
+	// Requirements:
+	//		ForwardIt must satisfy the requirements for a ForwardIterator
+	//		ForwardIt's value type must be integral
+	//		ForwardIt must be able to advance at least 81 times
+	// Return value:
+	//		Returns true if the puzzle was solved, and false if the puzzle is impossible to solve. 
+	// Side effects:
+	//		If the puzzle was solved successfully, then ForwardIterator contains the solved puzzle in index form
+	// Notes: Values outside 1-9 are assumed to be blank
+	// Exceptions:
+	//		Throws std::runtime_error if hardware does not support the __popcnt instruction.
+	template<typename ForwardIt>
+	bool evaluate(ForwardIt first);
+
+	//Parameters:
+	//		in - input stream. New line characters are ignored. Characters 1-9 assume its value, and all other characters are assumed to be blank.
+	//		out - output stream.
+	//		pretty - If true, the output stream will be prettified. 
+	// Return value:
+	//		Returns true if the puzzle was solved, and false if the puzzle is impossible to solve. 
+	// Notes:
+	//		If there are less than 81 characters in the input stream, then the rest is assumed to be blank.
+	//		If there are more than 81 characters in the input stream, only the first 81 characters are read.
+	// Exceptions:
+	//		Throws std::runtime_error if hardware does not support the __popcnt instruction.
+
+	// Sample output if pretty is false:
+	//		295743861431865927876192543387459216612387495549216738763524189928671354154938672	
+
+	// Sample output if pretty is true:
+	//		[2][9][5][7][4][3][8][6][1]
+	//		[4][3][1][8][6][5][9][2][7]
+	//		[8][7][6][1][9][2][5][4][3]
+	//		[3][8][7][4][5][9][2][1][6]
+	//		[6][1][2][3][8][7][4][9][5]
+	//		[5][4][9][2][1][6][7][3][8]
+	//		[7][6][3][5][2][4][1][8][9]
+	//		[9][2][8][6][7][1][3][5][4]
+	//		[1][5][4][9][3][8][6][7][2]
+	bool evaluate(std::istream & in, std::ostream & out, const bool pretty);
+}
+
+
+
+
+// --------------------------------------------------------------------------------
+// ------------------IMPLEMENTATION DETAILS BELOW----------------------------------
+// --------------------------------------------------------------------------------
+namespace sudoku
+{
+	// An index refers to the flattened cell of a sudoku board, in row-major order
+	// i.e. index 0 <-> (0,0), index 32 <-> (3,5)
+
+	// Domains of each cell are represented by the 32 bitset U32.
+	// If bit i is set, then the domain of the cell can contain value i+1
 	typedef uint32_t U32;
-	constexpr std::array<int, 9> block_region(const int index)
+
+	// Returns the 9 indices occupying the specified block
+	constexpr std::array<int, 9> block_region(const int block_index)
 	{
-		const auto start = 27 * (index / 3) + 3 * (index % 3);
+		const auto start = 27 * (block_index / 3) + 3 * (block_index % 3);
 		return std::array<int, 9>{	start, start + 1, start + 2,
 			start + 9, start + 10, start + 11,
 			start + 18, start + 19, start + 20 };
 
 	}
+	// Returns the 9 indices occupying the specified row
 	constexpr std::array<int, 9> row_region(const int col)
 	{
 		return std::array<int, 9>{ col, col + 9, col + 18, col + 27, col + 36, col + 45, col + 54, col + 63, col + 72};
 	}
+	// Returns the 9 indices occupying the specified col
 	constexpr std::array<int, 9> col_region(const int row)
 	{
 		return std::array<int, 9>{9 * row, 9 * row + 1, 9 * row + 2, 9 * row + 3, 9 * row + 4, 9 * row + 5, 9 * row + 6, 9 * row + 7, 9 * row + 8};
 	}
+
+	// A lookup table to find the neighbors of a given index. Index i has all neighbors stored in NEIGHBOR_TABLE[20*i : 20*i + 20)
 	const int NEIGHBOR_TABLE[1620] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 18, 27, 36, 45, 54, 63, 72, 10, 11, 19, 20, 0, 2, 3, 4, 5, 6, 7, 8, 10, 19, 28, 37, 46, 55, 64, 73, 9, 11, 18, 20, 0, 1, 3, 4, 5, 6, 7, 8, 11, 20,
 		29, 38, 47, 56, 65, 74, 9, 10, 18, 19, 0, 1, 2, 4, 5, 6, 7, 8, 12, 21, 30, 39, 48, 57, 66, 75, 13, 14, 22, 23, 0, 1, 2, 3, 5, 6, 7, 8, 13, 22, 31, 40, 49, 58, 67, 76, 12, 14, 21, 23, 0, 1, 2, 3, 4, 6, 7, 8,
 		14, 23, 32, 41, 50, 59, 68, 77, 12, 13, 21, 22, 0, 1, 2, 3, 4, 5, 7, 8, 15, 24, 33, 42, 51, 60, 69, 78, 16, 17, 25, 26, 0, 1, 2, 3, 4, 5, 6, 8, 16, 25, 34, 43, 52, 61, 70, 79, 15, 17, 24, 26, 0, 1, 2, 3, 4,
@@ -56,6 +124,8 @@ namespace sudoku
 		21, 30, 39, 48, 57, 66, 58, 59, 67, 68, 72, 73, 74, 75, 77, 78, 79, 80, 4, 13, 22, 31, 40, 49, 58, 67, 57, 59, 66, 68, 72, 73, 74, 75, 76, 78, 79, 80, 5, 14, 23, 32, 41, 50, 59, 68, 57, 58, 66, 67, 72, 73, 74,
 		75, 76, 77, 79, 80, 6, 15, 24, 33, 42, 51, 60, 69, 61, 62, 70, 71, 72, 73, 74, 75, 76, 77, 78, 80, 7, 16, 25, 34, 43, 52, 61, 70, 60, 62, 69, 71, 72, 73, 74, 75, 76, 77, 78, 79, 8, 17, 26, 35, 44, 53, 62, 71,
 		60, 61, 69, 70 };
+
+	// A table to lookup bitmasks for domain values, offset by 1. (The offset value is referred to as the zval)
 	const U32 MASK[9] = {
 		0x00000001,
 		0x00000002,
@@ -66,9 +136,11 @@ namespace sudoku
 		0x00000040,
 		0x00000080,
 		0x00000100 };
+
+	// A bitmask in which all zvals 0-8 are set.
 	const U32 MASK_ALL = 0x000001FF;
 
-	/* a REGION can be either a BLOCK, ROW, or COL*/
+	// Note: a REGION can be either a BLOCK, ROW, or COL.
 	const std::array<int, 9> BLOCK[9] = { block_region(0), block_region(1), block_region(2),
 											block_region(3), block_region(4), block_region(5),
 											block_region(6), block_region(7), block_region(8) };
@@ -78,26 +150,34 @@ namespace sudoku
 	const std::array<int, 9> COL[9] = { col_region(0), col_region(1), col_region(2),
 										col_region(3),col_region(4), col_region(5),
 										col_region(6), col_region(7), col_region(8) };
+
+	// An inference can reach 1 of 3 conclusions: Inconcistent, Inconclusive, or Solved
+	// Solved : The puzzle is in a solved state
+	// Inconclusive : Not enough information is given to conclude anything
+	// Inconsistent : The puzzle is inconsistent and is impossible to solve
 	enum class Status
 	{
 		Inconsistent, Inconclusive, Solved
 	};
-
+	
 	struct Arc
 	{
 		int from;
 		int to;
 	};
 
+
+	// Whenever a value is removed from the domain of an index, we need to propogate these changes to the arcs container
 	inline void revise(int from, std::vector<Arc> & arcs)
 	{
 		for (auto i = 0; i < 20; i++)
 		{
-			auto neighbor = NEIGHBOR_TABLE[20 * from + i];
+			const auto neighbor = NEIGHBOR_TABLE[20 * from + i];
 			arcs.push_back(Arc{neighbor,from });
 		}
 	}
 
+	// Create a container with all valid arcs
 	inline std::vector<Arc> make_arcs()
 	{
 		std::vector<Arc> arcs;
@@ -107,10 +187,7 @@ namespace sudoku
 			arcs.push_back(Arc{ i / 20, NEIGHBOR_TABLE[i] });
 		}
 		return arcs;
-	}
-
-	template<typename ForwardIt>
-	bool evaluate(ForwardIt first);
+	}	
 
 	template<typename ForwardIt>
 	class SudokuBoard
@@ -135,6 +212,7 @@ namespace sudoku
 			}
 		}
 
+		// Runs the AC3 inference algorithm
 		Status make_consistent(std::vector<Arc> & arcs)
 		{
 			while (!arcs.empty())
@@ -171,6 +249,7 @@ namespace sudoku
 			return true;
 		}
 
+		// Returns the index which has the smallest non-one hamming weight
 		int min_weight() const
 		{
 			auto min_index = -1;
@@ -192,6 +271,7 @@ namespace sudoku
 			return min_index;
 		}			
 
+		// Returns a semi-deep copy of the current SudokuBoard, with val being forced on index
 		SudokuBoard branch(const int index,const int val) const
 		{
 			auto clone(*this);
@@ -199,9 +279,9 @@ namespace sudoku
 			return clone;
 		}
 
-		bool evaluate(std::vector<Arc> arcs)
+		// Depth-first search to find a solved configuration, using AC3 inference along the way
+		bool search(std::vector<Arc> arcs)
 		{
-			// Consume current arcs 
 			auto res = make_consistent(arcs);
 			switch (res) {
 				case Status::Solved:		return true;
@@ -217,6 +297,7 @@ namespace sudoku
 			auto value = 0;
 			unsigned long pos;
 			auto current = domains[unassigned_index];
+			// Iterates through all values within the domain
 			while (_BitScanForward(&pos, current))
 			{
 				value += (pos + 1);
@@ -224,7 +305,7 @@ namespace sudoku
 				auto br = branch(unassigned_index, value);
 				auto br_arcs = arcs;
 				revise(unassigned_index, br_arcs);
-				if (br.evaluate(br_arcs))
+				if (br.search(br_arcs))
 				{
 					return true;
 				}
@@ -234,9 +315,9 @@ namespace sudoku
 
 		bool evaluate()
 		{
-			return evaluate(make_arcs());
+			return search(make_arcs());
 		}
-
+		// Update the passed in ForwardIterator with SudokuBoard's internal representation
 		void update_iterator()
 		{
 			for (auto index = 0; index < 81; index++)
@@ -252,7 +333,6 @@ namespace sudoku
 			}
 		}
 	};
-
 	inline std::string str(const int dst[81])
 	{
 		std::string str;
@@ -263,10 +343,11 @@ namespace sudoku
 		}
 		return str;
 	}
+
 	inline std::string pretty_str(const int dst[81])
 	{
 		std::string str;
-		str.reserve(90);
+		str.reserve(270);
 		for (auto row = 0; row < 9; row++)
 		{
 			for (auto col = 0; col < 9; col++)
@@ -291,8 +372,19 @@ namespace sudoku
 	template<typename ForwardIt>
 	inline bool evaluate(ForwardIt first)
 	{
-		SudokuBoard<ForwardIt> su(first);
-		return su.evaluate();
+		int cpu_info[4];
+		__cpuid(cpu_info, 1);
+		const U32 bitmask23 = 0x0800000;
+		if (!(cpu_info[2] & bitmask23))
+		{
+			throw std::runtime_error("Hardware does not support __popcnt instruction.");
+		}
+		else
+		{
+			SudokuBoard<ForwardIt> su(first);
+			return su.evaluate();
+		}
+		
 	}
 
 	inline bool evaluate(std::istream & in, std::ostream & out, const bool pretty = false)
@@ -309,13 +401,16 @@ namespace sudoku
 		}
 		std::fill(board + i, board + 81, 0);
 		auto status = evaluate(board);
-		if (pretty)
+		if (status)
 		{
-			out << pretty_str(board);
-		}
-		else
-		{
-			out << str(board);
+			if (pretty)
+			{
+				out << pretty_str(board);
+			}
+			else
+			{
+				out << str(board);
+			}
 		}
 		return status;
 	}
