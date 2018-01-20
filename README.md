@@ -3,7 +3,8 @@ A fast header-only solver for the game, Sudoku. Currently only supported for MSV
 ## Examples
 If you already have your inputs stored in a container, then simply pass in your ```ForwardIt``` when calling ```sudoku::evaluate```.
 ``` C++
-int board[81] = {	0,0,0,0,8,3,4,0,0,
+int board[81] = {	
+					0,0,0,0,8,3,4,0,0,
 					3,0,0,0,0,4,8,2,1,
 					7,0,0,0,0,0,0,0,0,
 					0,0,9,4,0,1,0,8,3,
@@ -83,10 +84,10 @@ bool evaluate(std::istream & in, std::ostream & out, bool pretty = false)
 - Returns true if the puzzle was solved, and and false if the puzzle is impossible to solve (inconsistent)
 
 ### **Side effects**
-- If the puzzle was solved successfully, then the completed is printed to the output stream.
+- If the puzzle was solved successfully, then the completed puzzle is printed to the output stream.
 
 ### **Exceptions**
-- Throws ```std::runtime_error``` if hardware does not support the __popcnt instruction.
+- Throws ```std::runtime_error``` if hardware does not support the ```__popcnt``` instruction.
 
 ### **Notes**
 - If there are less than 81 characters in the input stream, then the rest is assumed to be blank.
