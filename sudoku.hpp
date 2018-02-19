@@ -1,157 +1,44 @@
 #pragma once
-#include <intrin.h>
+#define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE 
+#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS 
+#include <boost/multi_array.hpp>
+#include <boost/dynamic_bitset.hpp>
+#undef BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE 
+#undef _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS 
+
 #include <vector>
-#include <array>
 #include <string>
-#pragma intrinsic(_BitScanForward)   
+#include <math.h> 
+
 
 //
  // Sudoku Solver
- //  Solve any 9x9 game of Sudoku using sudoku::evaluate
+ //  Solve any nxn game of Sudoku using sudoku::solve
 
 namespace sudoku
 {
-	
-
-	// Parameters:
-	//		first - The beginning of the input range 
-	// Requirements:
-	//		ForwardIt must satisfy the requirements for a ForwardIterator
-	//		ForwardIt's value type must be integral
-	//		ForwardIt must be able to advance at least 81 times
-	// Return value:
-	//		Returns true if the puzzle was solved, and false if the puzzle is impossible to solve. 
-	// Side effects:
-	//		If the puzzle was solved successfully, then ForwardIterator contains the solved puzzle in index form
-	// Notes: Values outside 1-9 are assumed to be blank
-	// Exceptions:
-	//		Throws std::runtime_error if hardware does not support the __popcnt instruction.
-	template<typename ForwardIt>
-	bool evaluate(ForwardIt first);
-
-	//Parameters:
-	//		in - input stream. New line characters are ignored. Characters 1-9 assume its value, and all other characters are assumed to be blank.
-	//		out - output stream.
-	//		pretty - If true, the output stream will be prettified. 
-	// Return value:
-	//		Returns true if the puzzle was solved, and false if the puzzle is impossible to solve. 
-	// Notes:
-	//		If there are less than 81 characters in the input stream, then the rest is assumed to be blank.
-	//		If there are more than 81 characters in the input stream, only the first 81 characters are read.
-	// Exceptions:
-	//		Throws std::runtime_error if hardware does not support the __popcnt instruction.
-
-	// Sample output if pretty is false:
-	//		295743861431865927876192543387459216612387495549216738763524189928671354154938672	
-
-	// Sample output if pretty is true:
-	//		[2][9][5][7][4][3][8][6][1]
-	//		[4][3][1][8][6][5][9][2][7]
-	//		[8][7][6][1][9][2][5][4][3]
-	//		[3][8][7][4][5][9][2][1][6]
-	//		[6][1][2][3][8][7][4][9][5]
-	//		[5][4][9][2][1][6][7][3][8]
-	//		[7][6][3][5][2][4][1][8][9]
-	//		[9][2][8][6][7][1][3][5][4]
-	//		[1][5][4][9][3][8][6][7][2]
-	bool evaluate(std::istream & in, std::ostream & out, const bool pretty);
-}
-
-
-
-
-// --------------------------------------------------------------------------------
-// ------------------IMPLEMENTATION DETAILS BELOW----------------------------------
-// --------------------------------------------------------------------------------
-namespace sudoku
-{
-	// An index refers to the flattened cell of a sudoku board, in row-major order
-	// i.e. index 0 <-> (0,0), index 32 <-> (3,5)
-
-	// Domains of each cell are represented by the 32 bitset U32.
+		// Domains of each cell are represented by a bitset.
 	// If bit i is set, then the domain of the cell can contain value i+1
-	typedef uint32_t U32;
 
-	// Returns the 9 indices occupying the specified block
-	constexpr std::array<int, 9> block_region(const int block_index)
+	inline boost::dynamic_bitset<> make_mask(const std::size_t val, const std::size_t N)
 	{
-		const auto start = 27 * (block_index / 3) + 3 * (block_index % 3);
-		return std::array<int, 9>{	start, start + 1, start + 2,
-			start + 9, start + 10, start + 11,
-			start + 18, start + 19, start + 20 };
-
-	}
-	// Returns the 9 indices occupying the specified row
-	constexpr std::array<int, 9> row_region(const int col)
-	{
-		return std::array<int, 9>{ col, col + 9, col + 18, col + 27, col + 36, col + 45, col + 54, col + 63, col + 72};
-	}
-	// Returns the 9 indices occupying the specified col
-	constexpr std::array<int, 9> col_region(const int row)
-	{
-		return std::array<int, 9>{9 * row, 9 * row + 1, 9 * row + 2, 9 * row + 3, 9 * row + 4, 9 * row + 5, 9 * row + 6, 9 * row + 7, 9 * row + 8};
+		if (val > N)
+		{
+			throw std::runtime_error("N is not large enough to fit bitmask for val");
+		}
+		boost::dynamic_bitset<> mask(N,1);
+		mask <<= (val - 1);
+		return mask;
 	}
 
-	// A lookup table to find the neighbors of a given index. Index i has all neighbors stored in NEIGHBOR_TABLE[20*i : 20*i + 20)
-	const int NEIGHBOR_TABLE[1620] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 18, 27, 36, 45, 54, 63, 72, 10, 11, 19, 20, 0, 2, 3, 4, 5, 6, 7, 8, 10, 19, 28, 37, 46, 55, 64, 73, 9, 11, 18, 20, 0, 1, 3, 4, 5, 6, 7, 8, 11, 20,
-		29, 38, 47, 56, 65, 74, 9, 10, 18, 19, 0, 1, 2, 4, 5, 6, 7, 8, 12, 21, 30, 39, 48, 57, 66, 75, 13, 14, 22, 23, 0, 1, 2, 3, 5, 6, 7, 8, 13, 22, 31, 40, 49, 58, 67, 76, 12, 14, 21, 23, 0, 1, 2, 3, 4, 6, 7, 8,
-		14, 23, 32, 41, 50, 59, 68, 77, 12, 13, 21, 22, 0, 1, 2, 3, 4, 5, 7, 8, 15, 24, 33, 42, 51, 60, 69, 78, 16, 17, 25, 26, 0, 1, 2, 3, 4, 5, 6, 8, 16, 25, 34, 43, 52, 61, 70, 79, 15, 17, 24, 26, 0, 1, 2, 3, 4,
-		5, 6, 7, 17, 26, 35, 44, 53, 62, 71, 80, 15, 16, 24, 25, 10, 11, 12, 13, 14, 15, 16, 17, 0, 18, 27, 36, 45, 54, 63, 72, 1, 2, 19, 20, 9, 11, 12, 13, 14, 15, 16, 17, 1, 19, 28, 37, 46, 55, 64, 73, 0, 2, 18, 20,
-		9, 10, 12, 13, 14, 15, 16, 17, 2, 20, 29, 38, 47, 56, 65, 74, 0, 1, 18, 19, 9, 10, 11, 13, 14, 15, 16, 17, 3, 21, 30, 39, 48, 57, 66, 75, 4, 5, 22, 23, 9, 10, 11, 12, 14, 15, 16, 17, 4, 22, 31, 40, 49, 58, 67,
-		76, 3, 5, 21, 23, 9, 10, 11, 12, 13, 15, 16, 17, 5, 23, 32, 41, 50, 59, 68, 77, 3, 4, 21, 22, 9, 10, 11, 12, 13, 14, 16, 17, 6, 24, 33, 42, 51, 60, 69, 78, 7, 8, 25, 26, 9, 10, 11, 12, 13, 14, 15, 17, 7, 25,
-		34, 43, 52, 61, 70, 79, 6, 8, 24, 26, 9, 10, 11, 12, 13, 14, 15, 16, 8, 26, 35, 44, 53, 62, 71, 80, 6, 7, 24, 25, 19, 20, 21, 22, 23, 24, 25, 26, 0, 9, 27, 36, 45, 54, 63, 72, 1, 2, 10, 11, 18, 20, 21, 22, 23,
-		24, 25, 26, 1, 10, 28, 37, 46, 55, 64, 73, 0, 2, 9, 11, 18, 19, 21, 22, 23, 24, 25, 26, 2, 11, 29, 38, 47, 56, 65, 74, 0, 1, 9, 10, 18, 19, 20, 22, 23, 24, 25, 26, 3, 12, 30, 39, 48, 57, 66, 75, 4, 5, 13, 14,
-		18, 19, 20, 21, 23, 24, 25, 26, 4, 13, 31, 40, 49, 58, 67, 76, 3, 5, 12, 14, 18, 19, 20, 21, 22, 24, 25, 26, 5, 14, 32, 41, 50, 59, 68, 77, 3, 4, 12, 13, 18, 19, 20, 21, 22, 23, 25, 26, 6, 15, 33, 42, 51, 60,
-		69, 78, 7, 8, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 7, 16, 34, 43, 52, 61, 70, 79, 6, 8, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 8, 17, 35, 44, 53, 62, 71, 80, 6, 7, 15, 16, 28, 29, 30, 31, 32, 33, 34, 35, 0,
-		9, 18, 36, 45, 54, 63, 72, 37, 38, 46, 47, 27, 29, 30, 31, 32, 33, 34, 35, 1, 10, 19, 37, 46, 55, 64, 73, 36, 38, 45, 47, 27, 28, 30, 31, 32, 33, 34, 35, 2, 11, 20, 38, 47, 56, 65, 74, 36, 37, 45, 46, 27, 28,
-		29, 31, 32, 33, 34, 35, 3, 12, 21, 39, 48, 57, 66, 75, 40, 41, 49, 50, 27, 28, 29, 30, 32, 33, 34, 35, 4, 13, 22, 40, 49, 58, 67, 76, 39, 41, 48, 50, 27, 28, 29, 30, 31, 33, 34, 35, 5, 14, 23, 41, 50, 59, 68,
-		77, 39, 40, 48, 49, 27, 28, 29, 30, 31, 32, 34, 35, 6, 15, 24, 42, 51, 60, 69, 78, 43, 44, 52, 53, 27, 28, 29, 30, 31, 32, 33, 35, 7, 16, 25, 43, 52, 61, 70, 79, 42, 44, 51, 53, 27, 28, 29, 30, 31, 32, 33, 34,
-		8, 17, 26, 44, 53, 62, 71, 80, 42, 43, 51, 52, 37, 38, 39, 40, 41, 42, 43, 44, 0, 9, 18, 27, 45, 54, 63, 72, 28, 29, 46, 47, 36, 38, 39, 40, 41, 42, 43, 44, 1, 10, 19, 28, 46, 55, 64, 73, 27, 29, 45, 47, 36, 37,
-		39, 40, 41, 42, 43, 44, 2, 11, 20, 29, 47, 56, 65, 74, 27, 28, 45, 46, 36, 37, 38, 40, 41, 42, 43, 44, 3, 12, 21, 30, 48, 57, 66, 75, 31, 32, 49, 50, 36, 37, 38, 39, 41, 42, 43, 44, 4, 13, 22, 31, 49, 58, 67,
-		76, 30, 32, 48, 50, 36, 37, 38, 39, 40, 42, 43, 44, 5, 14, 23, 32, 50, 59, 68, 77, 30, 31, 48, 49, 36, 37, 38, 39, 40, 41, 43, 44, 6, 15, 24, 33, 51, 60, 69, 78, 34, 35, 52, 53, 36, 37, 38, 39, 40, 41, 42, 44,
-		7, 16, 25, 34, 52, 61, 70, 79, 33, 35, 51, 53, 36, 37, 38, 39, 40, 41, 42, 43, 8, 17, 26, 35, 53, 62, 71, 80, 33, 34, 51, 52, 46, 47, 48, 49, 50, 51, 52, 53, 0, 9, 18, 27, 36, 54, 63, 72, 28, 29, 37, 38, 45, 47,
-		48, 49, 50, 51, 52, 53, 1, 10, 19, 28, 37, 55, 64, 73, 27, 29, 36, 38, 45, 46, 48, 49, 50, 51, 52, 53, 2, 11, 20, 29, 38, 56, 65, 74, 27, 28, 36, 37, 45, 46, 47, 49, 50, 51, 52, 53, 3, 12, 21, 30, 39, 57, 66, 75,
-		31, 32, 40, 41, 45, 46, 47, 48, 50, 51, 52, 53, 4, 13, 22, 31, 40, 58, 67, 76, 30, 32, 39, 41, 45, 46, 47, 48, 49, 51, 52, 53, 5, 14, 23, 32, 41, 59, 68, 77, 30, 31, 39, 40, 45, 46, 47, 48, 49, 50, 52, 53, 6,
-		15, 24, 33, 42, 60, 69, 78, 34, 35, 43, 44, 45, 46, 47, 48, 49, 50, 51, 53, 7, 16, 25, 34, 43, 61, 70, 79, 33, 35, 42, 44, 45, 46, 47, 48, 49, 50, 51, 52, 8, 17, 26, 35, 44, 62, 71, 80, 33, 34, 42, 43, 55, 56,
-		57, 58, 59, 60, 61, 62, 0, 9, 18, 27, 36, 45, 63, 72, 64, 65, 73, 74, 54, 56, 57, 58, 59, 60, 61, 62, 1, 10, 19, 28, 37, 46, 64, 73, 63, 65, 72, 74, 54, 55, 57, 58, 59, 60, 61, 62, 2, 11, 20, 29, 38, 47, 65, 74,
-		63, 64, 72, 73, 54, 55, 56, 58, 59, 60, 61, 62, 3, 12, 21, 30, 39, 48, 66, 75, 67, 68, 76, 77, 54, 55, 56, 57, 59, 60, 61, 62, 4, 13, 22, 31, 40, 49, 67, 76, 66, 68, 75, 77, 54, 55, 56, 57, 58, 60, 61, 62, 5,
-		14, 23, 32, 41, 50, 68, 77, 66, 67, 75, 76, 54, 55, 56, 57, 58, 59, 61, 62, 6, 15, 24, 33, 42, 51, 69, 78, 70, 71, 79, 80, 54, 55, 56, 57, 58, 59, 60, 62, 7, 16, 25, 34, 43, 52, 70, 79, 69, 71, 78, 80, 54, 55,
-		56, 57, 58, 59, 60, 61, 8, 17, 26, 35, 44, 53, 71, 80, 69, 70, 78, 79, 64, 65, 66, 67, 68, 69, 70, 71, 0, 9, 18, 27, 36, 45, 54, 72, 55, 56, 73, 74, 63, 65, 66, 67, 68, 69, 70, 71, 1, 10, 19, 28, 37, 46, 55, 73,
-		54, 56, 72, 74, 63, 64, 66, 67, 68, 69, 70, 71, 2, 11, 20, 29, 38, 47, 56, 74, 54, 55, 72, 73, 63, 64, 65, 67, 68, 69, 70, 71, 3, 12, 21, 30, 39, 48, 57, 75, 58, 59, 76, 77, 63, 64, 65, 66, 68, 69, 70, 71, 4,
-		13, 22, 31, 40, 49, 58, 76, 57, 59, 75, 77, 63, 64, 65, 66, 67, 69, 70, 71, 5, 14, 23, 32, 41, 50, 59, 77, 57, 58, 75, 76, 63, 64, 65, 66, 67, 68, 70, 71, 6, 15, 24, 33, 42, 51, 60, 78, 61, 62, 79, 80, 63, 64,
-		65, 66, 67, 68, 69, 71, 7, 16, 25, 34, 43, 52, 61, 79, 60, 62, 78, 80, 63, 64, 65, 66, 67, 68, 69, 70, 8, 17, 26, 35, 44, 53, 62, 80, 60, 61, 78, 79, 73, 74, 75, 76, 77, 78, 79, 80, 0, 9, 18, 27, 36, 45, 54, 63,
-		55, 56, 64, 65, 72, 74, 75, 76, 77, 78, 79, 80, 1, 10, 19, 28, 37, 46, 55, 64, 54, 56, 63, 65, 72, 73, 75, 76, 77, 78, 79, 80, 2, 11, 20, 29, 38, 47, 56, 65, 54, 55, 63, 64, 72, 73, 74, 76, 77, 78, 79, 80, 3, 12,
-		21, 30, 39, 48, 57, 66, 58, 59, 67, 68, 72, 73, 74, 75, 77, 78, 79, 80, 4, 13, 22, 31, 40, 49, 58, 67, 57, 59, 66, 68, 72, 73, 74, 75, 76, 78, 79, 80, 5, 14, 23, 32, 41, 50, 59, 68, 57, 58, 66, 67, 72, 73, 74,
-		75, 76, 77, 79, 80, 6, 15, 24, 33, 42, 51, 60, 69, 61, 62, 70, 71, 72, 73, 74, 75, 76, 77, 78, 80, 7, 16, 25, 34, 43, 52, 61, 70, 60, 62, 69, 71, 72, 73, 74, 75, 76, 77, 78, 79, 8, 17, 26, 35, 44, 53, 62, 71,
-		60, 61, 69, 70 };
+	inline boost::dynamic_bitset<> make_mask_all(const std::size_t N)
+	{
+		boost::dynamic_bitset<> mask(N);
+		mask.set();
+		return mask;
+	}
 
-	// A table to lookup bitmasks for domain values, offset by 1. (The offset value is referred to as the zval)
-	const U32 MASK[9] = {
-		0x00000001,
-		0x00000002,
-		0x00000004,
-		0x00000008,
-		0x00000010,
-		0x00000020,
-		0x00000040,
-		0x00000080,
-		0x00000100 };
-
-	// A bitmask in which all zvals 0-8 are set.
-	const U32 MASK_ALL = 0x000001FF;
-
-	// Note: a REGION can be either a BLOCK, ROW, or COL.
-	const std::array<int, 9> BLOCK[9] = { block_region(0), block_region(1), block_region(2),
-											block_region(3), block_region(4), block_region(5),
-											block_region(6), block_region(7), block_region(8) };
-	const std::array<int, 9> ROW[9] = { row_region(0), row_region(1), row_region(2),
-										row_region(3),row_region(4), row_region(5),
-										row_region(6), row_region(7), row_region(8) };
-	const std::array<int, 9> COL[9] = { col_region(0), col_region(1), col_region(2),
-										col_region(3),col_region(4), col_region(5),
-										col_region(6), col_region(7), col_region(8) };
-
-	// An inference can reach 1 of 3 conclusions: Inconcistent, Inconclusive, or Solved
+	// An inference can reach 1 of 3 conclusions: Inconsistent, Inconclusive, or Solved
 	// Solved : The puzzle is in a solved state
 	// Inconclusive : Not enough information is given to conclude anything
 	// Inconsistent : The puzzle is inconsistent and is impossible to solve
@@ -162,71 +49,115 @@ namespace sudoku
 	
 	struct Arc
 	{
-		int from;
-		int to;
-	};
+		std::size_t from;
+		std::size_t to;
+	};	
+	
 
-
-	// Whenever a value is removed from the domain of an index, we need to propogate these changes to the arcs container
-	inline void revise(int from, std::vector<Arc> & arcs)
+	class Solver
 	{
-		for (auto i = 0; i < 20; i++)
+		using DomainSet = std::vector<boost::dynamic_bitset<>>;
+		const std::size_t block_row_count;
+		const std::size_t block_col_count;
+		const std::size_t N;
+		const std::size_t num_neighbors;
+		boost::multi_array<std::size_t, 2> neighborhoods;
+		DomainSet masks;
+		boost::dynamic_bitset<> mask_all;	
+
+		std::size_t to_index(const std::size_t row, const std::size_t col) const
 		{
-			const auto neighbor = NEIGHBOR_TABLE[20 * from + i];
-			arcs.push_back(Arc{neighbor,from });
+			return N * row + col;
 		}
-	}
 
-	// Create a container with all valid arcs
-	inline std::vector<Arc> make_arcs()
-	{
-		std::vector<Arc> arcs;
-		arcs.reserve(1800);
-		for (auto i = 0; i < 1620; i++)
+		std::size_t neighbor_count()	const
 		{
-			arcs.push_back(Arc{ i / 20, NEIGHBOR_TABLE[i] });
+			//2 * (N - 1) are all neighbors within same row/column
+			// N - (block_row_count + block_col_count - 1) are all neighbors in same block that are not in the same row/column
+			return 2 * (N - 1) + (N - (block_row_count + block_col_count - 1));
 		}
-		return arcs;
-	}	
 
-	template<typename ForwardIt>
-	class SudokuBoard
-	{
-		friend bool evaluate<ForwardIt>(ForwardIt first);
-		std::array<U32, 81> domains;
-		ForwardIt first;
-		explicit SudokuBoard(ForwardIt it) : first(it)
+		// Have to do pass in neighborhood as output parameter as boost::multi_array has overly strict requirements for assignment operator
+		template<typename ForwardIt>
+		inline void populate_neighborhood(ForwardIt first, const std::size_t index)	const
 		{
-			static_assert(std::is_integral<typename std::iterator_traits<ForwardIt>::value_type>::value, "Integral value type required.");
-			for (auto i = 0; i < 81; i++)
+			const auto row = index / N;
+			const auto col = index % N;
+			for (std::size_t row_neighbor = 0; row_neighbor < N; row_neighbor++)
 			{
-				if (*it == 0)
+				if (row != row_neighbor)
 				{
-					domains[i] = MASK_ALL;
+					*first = to_index(row_neighbor, col);
+					++first;
 				}
-				else
+			}
+			for (std::size_t col_neighbor = 0; col_neighbor < N; col_neighbor++)
+			{
+				if (col != col_neighbor)
 				{
-					domains[i] = MASK[*it - 1];
+					*first = to_index(row, col_neighbor);
+					++first;
 				}
-				++it;
+			}
+			const auto base_row = block_row_count * (row / block_row_count);
+			const auto base_col = block_col_count * (col / block_col_count);
+			const auto base = to_index(base_row, base_col);
+			for (std::size_t block_neighbor = 0; block_neighbor < N; block_neighbor++)
+			{
+				const auto rel_row = block_neighbor / block_col_count;
+				const auto rel_col = block_neighbor % block_col_count;
+				if (base_row + rel_row != row && base_col + rel_col != col)
+				{
+					*first = base + to_index(rel_row, rel_col);
+					++first;
+				}
+			}
+		}
+		void generate_neighborhood_tables(boost::multi_array<std::size_t, 2> & empty_neighborhoods) const
+		{
+			empty_neighborhoods.resize(boost::extents[N*N][num_neighbors]);
+			for (std::size_t index = 0; index < N * N; index++)
+			{
+				populate_neighborhood(empty_neighborhoods[index].begin(), index);
 			}
 		}
 
+
+		// Whenever a value is changed from the domain of an index, we need to propogate these changes to arcs
+		void revise(std::size_t index, std::vector<Arc> & arcs) const
+		{
+			for (auto neighbor : neighborhoods[index])
+			{
+				arcs.push_back({ neighbor, index });
+			}
+		}
+
+		// Create a container with all valid arcs
+		std::vector<Arc> make_arcs() const
+		{
+			std::vector<Arc> arcs;
+			arcs.reserve(N*N*num_neighbors*2);
+			for (std::size_t index = 0; index < N * N; index++)
+			{				 
+				revise(index, arcs);				
+			}
+			return arcs;
+		}
 		// Runs the AC3 inference algorithm
-		Status make_consistent(std::vector<Arc> & arcs)
+		Status make_consistent(DomainSet & domains,std::vector<Arc> & arcs)	const
 		{
 			while (!arcs.empty())
 			{
 				const auto arc = arcs.back();
-				arcs.pop_back();
-				unsigned long to_zval;
-				if (__popcnt(domains[arc.to]) == 1)
+				arcs.pop_back();				
+				auto & to_domain = domains[arc.to];
+				auto & from_domain = domains[arc.from];
+				if (to_domain.count() == 1)
 				{
-					_BitScanForward(&to_zval, domains[arc.to]);
-					auto prev_domain = domains[arc.from];
-					domains[arc.from] &= ~domains[arc.to];
-					if (domains[arc.from] != prev_domain) {
-						if (!domains[arc.from])
+					auto prev_domain = from_domain;					
+					from_domain &= ~to_domain;			
+					if (from_domain != prev_domain) {
+						if (from_domain.none())
 						{
 							return Status::Inconsistent;
 						}						
@@ -237,26 +168,26 @@ namespace sudoku
 			return Status::Inconclusive;
 		}		
 
-		bool solved() const
+		bool solved(const DomainSet & domains) const
 		{
-			for (auto domain : domains)
+			for (std::size_t index = 0; index < N * N; index++)
 			{
-				if (__popcnt(domain) != 1)
+				if (domains[index].count() != 1)
 				{
 					return false;
 				}
 			}
-			return true;
+			return true;	
 		}
 
 		// Returns the index which has the smallest non-one hamming weight
-		int min_weight() const
+		std::size_t min_weight(const DomainSet & domains) const
 		{
-			auto min_index = -1;
-			auto min = 10;
-			for (auto index = 0; index < 81; index++)
+			std::size_t min_index = 0;
+			auto min = N + 1;
+			for (std::size_t index = 0; index < N * N; index++)
 			{
-				int hamming_weight = __popcnt(domains[index]);
+				auto hamming_weight = domains[index].count();
 				// 2 is a lower-bound
 				if (hamming_weight == 2)
 				{
@@ -271,147 +202,164 @@ namespace sudoku
 			return min_index;
 		}			
 
-		// Returns a semi-deep copy of the current SudokuBoard, with val being forced on index
-		SudokuBoard branch(const int index,const int val) const
+		// Returns a domain with index set to val
+		DomainSet branch(const DomainSet & domains, const std::size_t index,const std::size_t val) const
 		{
-			auto clone(*this);
-			clone.domains[index] = MASK[val - 1];
-			return clone;
+			auto br = domains;
+			br[index] = masks[val - 1];
+			return br;
 		}
 
-		// Depth-first search to find a solved configuration, using AC3 inference along the way
-		bool search(std::vector<Arc> arcs)
-		{
-			auto res = make_consistent(arcs);
-			switch (res) {
-				case Status::Solved:		return true;
-				case Status::Inconsistent:	return false;
-				case Status::Inconclusive:	break;
-			}
-			if (solved())
+		// Depth-first search to find a solved configuration, using AC3 inference along the way		
+		template <typename OutputIt>
+		OutputIt search(DomainSet & domains, std::vector<Arc> arcs, OutputIt & current_iterator, int & solutions_found, int solution_count,bool is_pretty)
+		{			
+			if (make_consistent(domains, arcs) == Status::Inconsistent)
 			{
-				update_iterator();
-				return true;
+				return current_iterator;
 			}
-			auto unassigned_index = min_weight();
-			auto value = 0;
-			unsigned long pos;
-			auto current = domains[unassigned_index];
-			// Iterates through all values within the domain
-			while (_BitScanForward(&pos, current))
-			{
-				value += (pos + 1);
-				current >>= (pos + 1);
-				auto br = branch(unassigned_index, value);
-				auto br_arcs = arcs;
-				revise(unassigned_index, br_arcs);
-				if (br.search(br_arcs))
+			if (solved(domains))
+			{			
+				if (is_pretty)
 				{
-					return true;
-				}
-			}
-			return false;
-		}
-
-		bool evaluate()
-		{
-			return search(make_arcs());
-		}
-		// Update the passed in ForwardIterator with SudokuBoard's internal representation
-		void update_iterator()
-		{
-			for (auto index = 0; index < 81; index++)
-			{
-				if (__popcnt(domains[index]) == 1)
-				{
-					unsigned long pos;
-					_BitScanForward(&pos, domains[index]);
-					auto val = pos + 1;
-					*first = val;
-					++first;
-				}
-			}
-		}
-	};
-	inline std::string str(const int dst[81])
-	{
-		std::string str;
-		str.reserve(81);
-		for (auto index = 0; index < 81; index++)
-		{
-			str.append(std::to_string(dst[index]));
-		}
-		return str;
-	}
-
-	inline std::string pretty_str(const int dst[81])
-	{
-		std::string str;
-		str.reserve(270);
-		for (auto row = 0; row < 9; row++)
-		{
-			for (auto col = 0; col < 9; col++)
-			{
-				auto index = row * 9 + col;
-				if (dst[index] == 0)
-				{
-					str.append("[ ]");
+					*current_iterator = pretty_str(domains);
 				}
 				else
 				{
-					str.append("[");
-					str.append(std::to_string(dst[index]));
-					str.append("]");
+					*current_iterator = str(domains);
+				}
+				++current_iterator;
+				solutions_found++;
+				return current_iterator;
+			}
+			std::size_t value = 0;
+			auto unassigned_index = min_weight(domains);
+			auto current = domains[unassigned_index];
+			// Iterates through all values within the domain
+			while (solutions_found < solution_count)
+			{
+				auto pos =current.find_first();
+				if (pos == boost::dynamic_bitset<>::npos)
+				{
+					break;
+				}
+				value += (pos + 1);
+				current >>= (pos + 1);
+				auto br = branch(domains, unassigned_index, value);
+				auto br_arcs = arcs;
+				revise(unassigned_index, br_arcs);
+				search(br, br_arcs, current_iterator, solutions_found, solution_count, is_pretty);
+			}
+			return current_iterator;
+		}
+		std::string pretty_str(const DomainSet & domains) const
+		{
+			auto val_length = static_cast<int>(log10(N)) + 1;
+			std::string repr;			
+			// block_row_count = N / block_col_count
+			auto length = (1+val_length)*N + 2 * block_row_count + 1;			
+			repr.reserve(length * length);
+			for (std::size_t row = 0; row < N; row++)
+			{
+				if (row % block_row_count == 0)
+				{
+					repr.insert(repr.end(), length, '-');
+					repr.push_back('\n');
+				}
+				for (std::size_t col = 0; col < N; col++)
+				{
+					if (col % block_col_count == 0)
+					{
+						repr.append("| ");
+					}
+					auto index = to_index(row, col);
+					if (domains[index].count() == 1)
+					{
+						auto val = domains[index].find_first() + 1;
+						//Prepad with 0's if necessary
+						auto padding = val_length - 1 - static_cast<int>(log10(val));
+						repr.insert(repr.end(), padding, '0');
+						repr.append(std::to_string(val));
+					}
+					else
+					{
+						repr.push_back(' ');
+					}
+					repr.push_back(' ');
+
+				}
+				repr.append("|\n");
+			}
+			repr.insert(repr.end(), length, '-');
+			return repr;
+		}
+		std::string str(const DomainSet & domains) const
+		{
+			std::string str;
+			str.reserve(N * N);
+			for (std::size_t row = 0; row < N; row++)
+			{
+				for (std::size_t col = 0; col < N; col++)
+				{
+					auto index = to_index(row, col);
+					if (domains[index].count() == 1)
+					{
+						str.append(std::to_string(domains[index].find_first() + 1));
+					}
+					else
+					{
+						str.push_back('0');
+					}
+					if (index != N*N - 1)
+					{
+						str.push_back(' ');
+					}
+
 				}
 			}
-			str.append("\n");
+			return str;
 		}
-		return str;
-	}
+		public:
+			explicit Solver(const std::size_t b_row_count, const std::size_t b_col_count) :	block_row_count(b_row_count),
+																							block_col_count(b_col_count),
+																							N(block_row_count * block_col_count),
+																							num_neighbors(neighbor_count())
+			{
+				if (b_row_count == 0 || b_col_count == 0)
+				{
+					throw std::runtime_error("Parameters cannot be 0");
+				}
+				generate_neighborhood_tables(neighborhoods);
+				// Generate masks
+				masks.reserve(N);
+				for (std::size_t val = 1; val <= N; val++)
+				{
+					masks.push_back(make_mask(val, N));
+				}
+				mask_all = make_mask_all(N);			
+			}
 
-	template<typename ForwardIt>
-	inline bool evaluate(ForwardIt first)
-	{
-		int cpu_info[4];
-		__cpuid(cpu_info, 1);
-		const U32 bitmask23 = 0x0800000;
-		if (!(cpu_info[2] & bitmask23))
-		{
-			throw std::runtime_error("Hardware does not support __popcnt instruction.");
-		}
-		else
-		{
-			SudokuBoard<ForwardIt> su(first);
-			return su.evaluate();
-		}
-		
-	}
-
-	inline bool evaluate(std::istream & in, std::ostream & out, const bool pretty = false)
-	{
-		int board[81];
-		auto i = 0;
-		for (std::string line; std::getline(in, line) && i < 81;)
-		{
-			for (const auto c : line)
+		template<typename OutputIt>
+		OutputIt solve(std::string input, OutputIt output_iterator, int solution_count = 1, bool is_pretty = false)
+		{			
+			DomainSet domains(N*N, mask_all);
+			auto index = 0;
+			for (const auto c : input)
 			{
-				auto val = c - '0';
-				board[i++] = (val > 0 && val < 10) ? val : 0;
-			}
+				if (index == N*N)
+				{
+					break;
+				}
+				if (c != '\n' && c != '\r')
+				{
+					auto val = c - '0';
+					domains[index] = (val > 0 && val < 10) ? masks[val - 1] : mask_all;
+					index++;
+				}
+			}			
+			auto solutions_found = 0;
+			return search(domains,make_arcs(),output_iterator, solutions_found, solution_count, is_pretty);
 		}
-		std::fill(board + i, board + 81, 0);
-		auto status = evaluate(board);
-		if (status)
-		{
-			if (pretty)
-			{
-				out << pretty_str(board);
-			}
-			else
-			{
-				out << str(board);
-			}
-		}
-		return status;
-	}
+	};
+	
 }
