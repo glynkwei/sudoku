@@ -3,6 +3,7 @@
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS 
 #include <boost/multi_array.hpp>
 #include <boost/dynamic_bitset.hpp>
+#include <boost/algorithm/string.hpp>
 #undef BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE 
 #undef _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS 
 
@@ -53,6 +54,15 @@ namespace sudoku
 		std::size_t to;
 	};	
 	
+
+	template<typename OutputIt>
+	struct Analysis
+	{		
+		OutputIt last;
+		int solutions_found;
+
+		/* TODO: Copy stack trace, so it's possible to continue later on*/
+	};
 
 	class Solver
 	{
@@ -256,7 +266,6 @@ namespace sudoku
 		{
 			auto val_length = static_cast<int>(log10(N)) + 1;
 			std::string repr;			
-			// block_row_count = N / block_col_count
 			auto length = (1+val_length)*N + 2 * block_row_count + 1;			
 			repr.reserve(length * length);
 			for (std::size_t row = 0; row < N; row++)
@@ -340,7 +349,7 @@ namespace sudoku
 			}
 
 		template<typename OutputIt>
-		OutputIt solve(std::string input, OutputIt output_iterator, int solution_count = 1, bool is_pretty = false)
+		Analysis<OutputIt> solve(std::string input, OutputIt output_iterator, int solution_count = 1, bool is_pretty = false)
 		{			
 			DomainSet domains(N*N, mask_all);
 			auto index = 0;
@@ -358,7 +367,39 @@ namespace sudoku
 				}
 			}			
 			auto solutions_found = 0;
-			return search(domains,make_arcs(),output_iterator, solutions_found, solution_count, is_pretty);
+			auto last_it = search(domains,make_arcs(),output_iterator, solutions_found, solution_count, is_pretty);
+			return { last_it, solutions_found };
+		}
+
+		//TODO: Rewrite so search can handle numerical results, instead of having many conversions
+
+		template<typename InputIt, typename OutputIt>
+		Analysis<OutputIt> solve(InputIt input_iterator, OutputIt output_iterator, int solution_count = 1)
+		{
+			DomainSet domains(N*N, mask_all);
+			for (auto index = 0; index < N * N; index++, ++input_iterator)
+			{				
+				auto val = *input_iterator;
+				domains[index] = (val > 0 && val < 10) ? masks[val - 1] : mask_all;							
+			}
+			auto solutions_found = 0;
+			std::vector<std::string> solutions(solution_count);
+			auto begin = solutions.begin();
+			auto last_it = search(domains, make_arcs(), begin, solutions_found, solution_count, false);
+
+			
+			std::for_each(solutions.begin(), solutions.end(), [& output_iterator](auto solution)
+			{
+				std::vector<std::string> delimited_solution;
+				boost::split(delimited_solution, solution, boost::is_any_of(" "), boost::token_compress_on);
+				std::for_each(delimited_solution.begin(), delimited_solution.end(), [& output_iterator](auto val_as_str)
+				{
+					*output_iterator = std::stoi(val_as_str);
+					++output_iterator;
+				});
+			});
+
+			return { output_iterator, solutions_found };
 		}
 	};
 	
